@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View MojoMath Output</title>
+    <style>
+        .center {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 20px;
+            width: 50%;
+        }
+    </style>
+</head>
+<body>
+    <h3 style="text-align:center">MojoMath Test</h3>
+    <form style="text-align:center" id="uploadbanner" enctype="multipart/form-data">
+        <input id="fileupload" accept='image/*' name="myfile" type="file" onchange='openFile(event)' />
+        is_snip: <input id="issnip_value" type="checkbox" /> 
+        <input type="submit" value="submit" id="submit" disabled="disabled" />
+    </form>
+    <img id='output' class="center" style="text-align:center;height:auto; width:500px;">
+    <p id="response" style="margin-top: 20px; text-align:center"></p>
+    <script>
+        const url = "http://106.51.131.207:3939/v2/models/mojomath/infer";
+        const form = document.querySelector('form');
+        const btnSubmit = document.getElementById("submit");
+        btnSubmit.disabled = true;
+
+        let input_data = null;
+        let is_snip = document.getElementById("issnip_value").checked;
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            var myHeaders = new Headers();
+            myHeaders.append("Content-Type", "text/plain");
+            
+            is_snip = document.getElementById("issnip_value").checked;
+            input_data = input_data.split(",").pop();
+
+            let request_json = {
+                "id": "42",
+                "inputs": [
+                    {
+                        "name": "IMAGE",
+                        "shape": [1],
+                        "datatype": "BYTES",
+                        "data": null
+                    },
+                    {
+                        "name": "IS_SNIP",
+                        "shape": [1],
+                        "datatype": "BOOL",
+                        "data": null
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "OCR"
+                    }
+                ]
+            };
+
+            request_json['inputs'][0]['data'] = [input_data];
+            request_json['inputs'][1]['data'] = [is_snip];
+
+            // console.log("request_json: ", JSON.stringify(request_json))
+
+            document.getElementById("response").innerHTML = "Waiting for Response ...";
+            let raw = JSON.stringify(request_json);
+
+            const requestOptions = {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+            };
+
+            fetch(url, requestOptions)
+            .then(response => {
+                console.log("response: ", response);
+                return response.text()
+            }).then((result) => {
+                console.log("result: ", result);
+                document.getElementById("response").innerHTML = result;
+            }).catch((err) => {
+                console.log("Error: ", err)
+            })
+        })
+
+        var openFile = async function(file) {
+            var input = file.target.files[0];
+            input_data = utf8Decode(await toBase64(input));
+            btnSubmit.disabled = false;
+        }    
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                var dataURL = reader.result;
+                var output = document.getElementById('output');
+                output.src = dataURL;
+                resolve(reader.result)
+            };
+            reader.onerror = error => reject(error);
+        });
+
+        function utf8Decode(utf8String) {
+            if (typeof utf8String != 'string') throw new TypeError('parameter ‘utf8String’ is not a string');
+            // note: decode 3-byte chars first as decoded 2-byte strings could appear to be 3-byte char!
+            const unicodeString = utf8String.replace(
+                /[\u00e0-\u00ef][\u0080-\u00bf][\u0080-\u00bf]/g,  // 3-byte chars
+                function(c) {  // (note parentheses for precedence)
+                    var cc = ((c.charCodeAt(0)&0x0f)<<12) | ((c.charCodeAt(1)&0x3f)<<6) | ( c.charCodeAt(2)&0x3f);
+                    return String.fromCharCode(cc); }
+            ).replace(
+                /[\u00c0-\u00df][\u0080-\u00bf]/g,                 // 2-byte chars
+                function(c) {  // (note parentheses for precedence)
+                    var cc = (c.charCodeAt(0)&0x1f)<<6 | c.charCodeAt(1)&0x3f;
+                    return String.fromCharCode(cc); }
+            );
+            return unicodeString;
+        }
+    
+        async function getTextFromStream(readableStream) {
+            let reader = readableStream.getReader();
+            let utf8Decoder = new TextDecoder();
+            let nextChunk;
+            
+            let resultStr = '';
+            
+            while (!(nextChunk = await reader.read()).done) {
+                let partialData = nextChunk.value;
+                resultStr += utf8Decoder.decode(partialData);
+            }
+            
+            return resultStr;
+        }
+    </script>
+</body>
+</html>
