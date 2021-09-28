@@ -90,6 +90,7 @@
                 document.getElementById("response").innerHTML = result;
             }).catch((err) => {
                 console.log("Error: ", err)
+                document.getElementById("response").innerHTML = err;
             })
         })
 
